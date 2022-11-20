@@ -133,7 +133,7 @@ class MarginalSumsRegression(BaseEstimator):
             X = X.toarray()
 
         X = check_array(X)
-        y = check_array(y)
+        y = check_array(y, ensure_2d=False)
 
         # init weight vector
         if self.add_weights:
