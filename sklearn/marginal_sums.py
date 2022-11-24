@@ -35,9 +35,10 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     Parameters
     ----------
-    discretizer : transformer, default=KBinsDiscretizer
+    discretizer : transformer, default="kbins"
         Transformer to discretize any numeric values in X, if they aren't onehot
-        encoded yet.
+        encoded yet. If "kbins", then dafault
+        KBinsDiscretizer(encode="onehot", n_bins=2, random_state=42) is used.
 
     nax_iter : int, default=100
         Number of maximum iterations, in case the algorithm does not converge. One
@@ -49,6 +50,9 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     Attributes
     ----------
+    discretizer_ : transfoerm
+        Internal discretizer used to onehot encode features.
+
     factors_ : ndarray of shape (n_classes,)
         Factors for the multiplicative model.
 
@@ -74,7 +78,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     def __init__(
         self,
-        discretizer=KBinsDiscretizer(encode="onehot", n_bins=2, random_state=42),
+        discretizer="kbins",
         max_iter=100,
         min_factor_change=0.001,
     ):
@@ -105,12 +109,22 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
                 " discretized.",
                 UserWarning,
             )
-            X = ColumnTransformer(
+            if self.discretizer == "kbins":
+                self.discretizer_ = KBinsDiscretizer(
+                    encode="onehot", n_bins=2, random_state=42
+                )
+            else:
+                self.discretizer_ = self.discretizer
+
+            self.column_transformer_ = ColumnTransformer(
                 [
                     ("passthrough", "passthrough", onehot_cols),
-                    ("discretizer", self.discretizer, transform_cols),
+                    ("discretizer", self.discretizer_, transform_cols),
                 ]
-            ).fit_transform(X)
+            ).fit(X)
+            X = self.column_transformer_.transform(X)
+        else:
+            self.column_transformer_ = None
 
         return X
 
@@ -129,7 +143,8 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             Target variable.
         """
 
-        for i in range(self.max_iter):
+        for i in range(1, self.max_iter + 1):
+            self.n_iter_ = i
             for feature in range(X.shape[1]):
                 # Create a mask to select all rows with the current feature = 1 and
                 # all columns except for the current feature.
@@ -158,10 +173,10 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
             # Check early stopping criteria after each iteration
             if np.max(self.factors_change_) < self.min_factor_change:
-                print(f"Converged after {i+1} iterations.")
+                print(f"Converged after {self.n_iter_} iterations.")
                 break
 
-            if i == self.max_iter - 1:
+            if i == self.max_iter:
                 warnings.warn(
                     f"Did not converge after {self.max_iter} iterations.", UserWarning
                 )
@@ -187,7 +202,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         """
 
         self._validate_params()
-        X = self._validate_data(X=X, accept_sparse=True)
+        X, y = self._validate_data(X=X, y=y, accept_sparse=True)
         X = self._check_X(X)
 
         # init weight vector
@@ -195,9 +210,9 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             self.weights_ = sample_weight
         else:
             self.weights_ = np.ones(X.shape[0])
-        if (self.weights_ <= 0).any():
+        if (self.weights_ < 0).any():
             raise ValueError(
-                "Value <= 0 detected in first column. Expected weights > 0."
+                "Value < 0 detected in first column. Expected weights >= 0."
             )
 
         # init factors
@@ -224,7 +239,9 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             Input array with n observations and m features. All features need to be
             onehot encoded.
         """
-        X = self._check_X(X)
+        X = self._validate_data(X=X, accept_sparse=True)
+        if self.column_transformer_:
+            X = self.column_transformer_.transform(X)
         X_factor = np.multiply(self.factors_, X)
         return np.prod(X_factor, axis=1, where=X_factor > 0) * self.y_mean_
 
