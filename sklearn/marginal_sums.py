@@ -2,6 +2,8 @@ import warnings
 from numbers import Real, Integral
 import numpy as np
 from .base import BaseEstimator, RegressorMixin
+from .compose import ColumnTransformer
+from .preprocessing import KBinsDiscretizer
 from .utils import check_array
 from .utils._param_validation import Interval
 
@@ -33,10 +35,9 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     Parameters
     ----------
-
-    add_weights : bool, default=True
-        If True, a numpy array of shape (X.shape[0],) gets initialized with ones.
-        If False, the first column of X is considered to contain weights.
+    discretizer : transformer, default=KBinsDiscretizer
+        Transformer to discretize any numeric values in X, if they aren't onehot
+        encoded yet.
 
     nax_iter : int, default=100
         Number of maximum iterations, in case the algorithm does not converge. One
@@ -45,18 +46,73 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
     min_factor_change : float, default=0.001
         Criteria for early stopping. Minimal change of at least one factor in the last
         iteration.
+
+    Attributes
+    ----------
+    factors_ : ndarray of shape (n_classes,)
+        Factors for the multiplicative model.
+
+    factors_change_ : ndarray of shape (n_classes,)
+        Updates on the factors of the latest iteration.
+
+    feature_names_in_ : ndarray of shape (`n_features_in_`,)
+        Names of features seen during :term:`fit`. Defined only when `X`
+        has feature names that are all strings.
+
+    weights_ : ndarray of shape (n_rows,)
+        Weights used for fitting.
+
+    y_mean_ : float
+        Mean value of the target variable.
     """
 
     _parameter_constraints: dict = {
-        "add_weights": ["boolean"],
+        "discretizer": "no_validation",
         "max_iter": [Interval(Integral, 1, None, closed="left")],
         "min_factor_change": [Interval(Real, 0, None, closed="left")],
     }
 
-    def __init__(self, add_weights=True, max_iter=100, min_factor_change=0.001):
-        self.add_weights = add_weights
+    def __init__(
+        self,
+        discretizer=KBinsDiscretizer(encode="onehot", n_bins=2, random_state=42),
+        max_iter=100,
+        min_factor_change=0.001,
+    ):
+        # self.add_weights = add_weights
+        self.discretizer = discretizer
         self.max_iter = max_iter
         self.min_factor_change = min_factor_change
+
+    def _check_X(self, X):
+        # ensure ndarray
+        if hasattr(X, "toarray"):
+            X = X.toarray()
+
+        # ensure array is onehot encoded
+        onehot_cols = [
+            col
+            for col in range(X.shape[1])
+            if ((X[:, col] == 0) | (X[:, col] == 1)).all()
+        ]
+        transform_cols = [
+            col
+            for col in range(X.shape[1])
+            if not ((X[:, col] == 0) | (X[:, col] == 1)).all()
+        ]
+        if len(transform_cols) > 0:
+            warnings.warn(
+                f"Columns {transform_cols} are not onehot encoded and will be"
+                " discretized.",
+                UserWarning,
+            )
+            X = ColumnTransformer(
+                [
+                    ("passthrough", "passthrough", onehot_cols),
+                    ("discretizer", self.discretizer, transform_cols),
+                ]
+            ).fit_transform(X)
+
+        return X
 
     def _fit(self, X, y):
         """
@@ -81,25 +137,27 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
                 row_mask = X[:, feature] > 0
 
                 # Mask X and multiply elementwise with the current factors
-                X_factor = np.multiply(self.factors[col_mask], X[row_mask][:, col_mask])
+                X_factor = np.multiply(
+                    self.factors_[col_mask], X[row_mask][:, col_mask]
+                )
 
                 # Calculate the marginal sum with the current factors
                 # SUM(weights * PROD(factors) * y_mean)
                 calc_marginal_sum = (
-                    self.weights[row_mask]
+                    self.weights_[row_mask]
                     * np.prod(X_factor, axis=1, where=X_factor > 0)
-                    * self.y_mean
+                    * self.y_mean_
                 ).sum()
 
                 # Update the factor
-                updated_factor = self.marginal_sums[feature] / calc_marginal_sum
-                self.factors_change[feature] = np.absolute(
-                    self.factors[feature] - updated_factor
+                updated_factor = self.marginal_sums_[feature] / calc_marginal_sum
+                self.factors_change_[feature] = np.absolute(
+                    self.factors_[feature] - updated_factor
                 )
-                self.factors[feature] = updated_factor
+                self.factors_[feature] = updated_factor
 
             # Check early stopping criteria after each iteration
-            if np.max(self.factors_change) < self.min_factor_change:
+            if np.max(self.factors_change_) < self.min_factor_change:
                 print(f"Converged after {i+1} iterations.")
                 break
 
@@ -108,14 +166,13 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
                     f"Did not converge after {self.max_iter} iterations.", UserWarning
                 )
 
-    def fit(self, X, y):
+    def fit(self, X, y, sample_weight=None):
         """
         Wrapper for the fit_ method to calculated weights, marginal sums, the mean
         target and initialize factors.
 
         Parameters
         ----------
-
         X : array of shape (n,m)
             Input array with n observations and either m features (no weight vector) or
             m - 1 features if the first row is a weight vector. All features, except
@@ -124,44 +181,34 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
         y : array of shape (n,1)
             Target variable.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Weights applied to individual samples (1. for unweighted).
         """
 
         self._validate_params()
-
-        # ensure ndarray
-        if hasattr(X, "toarray"):
-            X = X.toarray()
-
-        X = check_array(X)
-        y = check_array(y, ensure_2d=False)
+        X = self._validate_data(X=X, accept_sparse=True)
+        X = self._check_X(X)
 
         # init weight vector
-        if self.add_weights:
-            self.weights = np.ones(X.shape[0])
+        if sample_weight is not None:
+            self.weights_ = sample_weight
         else:
-            self.weights = X[:, 0]
-            if (self.weights <= 0).any():
-                raise ValueError(
-                    "Value <= 0 detected in first column. Expected weights > 0."
-                )
-            X = X[:, 1:]
-
-        # check if array is onehot encoded
-        if not ((X == 0) | (X == 1)).all():
+            self.weights_ = np.ones(X.shape[0])
+        if (self.weights_ <= 0).any():
             raise ValueError(
-                "Value different from 1 or 0 detected. Only onehot encoded values"
-                " expected."
+                "Value <= 0 detected in first column. Expected weights > 0."
             )
 
         # init factors
-        self.factors = np.ones(X.shape[1])
-        self.factors_change = np.zeros(X.shape[1])
+        self.factors_ = np.ones(X.shape[1])
+        self.factors_change_ = np.zeros(X.shape[1])
 
         # calculate marginal sums of original data
-        self.marginal_sums = np.dot(X.T, y)
+        self.marginal_sums_ = np.dot(X.T, y)
 
         # calculate mean y
-        self.y_mean = np.sum(y) / np.sum(self.weights)
+        self.y_mean_ = np.sum(y) / np.sum(self.weights_)
 
         self._fit(X, y)
 
@@ -177,29 +224,28 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             Input array with n observations and m features. All features need to be
             onehot encoded.
         """
-        if hasattr(X, "toarray"):
-            X = X.toarray()
-        X_factor = np.multiply(self.factors, X)
-        return np.prod(X_factor, axis=1, where=X_factor > 0) * self.y_mean
+        X = self._check_X(X)
+        X_factor = np.multiply(self.factors_, X)
+        return np.prod(X_factor, axis=1, where=X_factor > 0) * self.y_mean_
 
-    def fit_predict(self, X, y):
+    def fit_predict(self, X, y, sample_weight=None):
         """
         Fit & predict. See the fit and predcit methods for details.
 
         Parameters
         ----------
-
         X : array of shape (n,m)
             Input array with n observations and either m features (no weight vector) or
             m - 1 features if the first row is a weight vector. All features, except
-            for the weight vector, need to be onehot encoded.
+            for the weight vector, need to be onehot encoded. The weights must not
+            contain zeros.
 
         y : array of shape (n,1)
             Target variable.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Weights applied to individual samples (1. for unweighted).
         """
 
-        self.fit(X, y)
-        # remove weight vector for prediction
-        if not self.add_weights:
-            X = X[:, 1:]
+        self.fit(X, y, sample_weight)
         return self.predict(X)
