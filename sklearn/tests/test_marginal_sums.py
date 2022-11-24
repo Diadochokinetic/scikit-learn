@@ -22,7 +22,7 @@ def test_with_given_weights():
     y = y_sums
     X = np.insert(features, 0, weights, axis=1)
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msr.fit(X, y)
 
     assert_array_almost_equal(msr.factors, factors)
@@ -34,7 +34,7 @@ def test_missing_weights():
     y = y_sums
     X = features
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msg = r"Value <= 0 detected in first column. Expected weights > 0."
     with pytest.raises(ValueError, match=msg):
         msr.fit(X, y)
@@ -55,7 +55,7 @@ def test_negative_weights():
     y = y_sums
     X = np.insert(features, 0, np.array([-100, 200, 300, 400]), axis=1)
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msg = r"Value <= 0 detected in first column. Expected weights > 0."
     with pytest.raises(ValueError, match=msg):
         msr.fit(X, y)
@@ -65,7 +65,7 @@ def test_convergence_warning():
     y = y_sums
     X = np.insert(features, 0, weights, axis=1)
 
-    msr = MarginalSumsRegression(max_iter=3)
+    msr = MarginalSumsRegression(max_iter=3, add_weights=False)
 
     msg = r"not converge"
     with pytest.warns(UserWarning, match=msg):
@@ -76,7 +76,7 @@ def test_sparse_input():
     y = y_sums
     X = scipy.sparse.csr_matrix(np.insert(features, 0, weights, axis=1))
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msr.fit(X, y)
 
     assert_array_almost_equal(msr.factors, factors)
@@ -97,7 +97,7 @@ def test_not_onehot_encoded_input():
     y = y_sums
     X = np.insert(not_encoded_features, 0, weights, axis=1)
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msg = r"Value different from 1 or 0 detected. Only onehot encoded values expected."
     with pytest.raises(ValueError, match=msg):
         msr.fit(X, y)
@@ -107,7 +107,7 @@ def test_2d_y():
     y = y_sums.reshape(-1, 1)
     X = np.insert(features, 0, weights, axis=1)
 
-    msr = MarginalSumsRegression()
+    msr = MarginalSumsRegression(add_weights=False)
     msr.fit(X, y)
 
     assert_array_almost_equal(msr.factors, factors)

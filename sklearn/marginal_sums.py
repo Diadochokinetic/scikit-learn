@@ -34,7 +34,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
     Parameters
     ----------
 
-    add_weights : bool, default=False
+    add_weights : bool, default=True
         If True, a numpy array of shape (X.shape[0],) gets initialized with ones.
         If False, the first column of X is considered to contain weights.
 
@@ -53,7 +53,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         "min_factor_change": [Interval(Real, 0, None, closed="left")],
     }
 
-    def __init__(self, add_weights=False, max_iter=100, min_factor_change=0.001):
+    def __init__(self, add_weights=True, max_iter=100, min_factor_change=0.001):
         self.add_weights = add_weights
         self.max_iter = max_iter
         self.min_factor_change = min_factor_change
