@@ -35,7 +35,7 @@ def test_missing_weights():
     X = features
 
     msr = MarginalSumsRegression()
-    msg = r"0 detected in first column. Expected weights > 0."
+    msg = r"Value <= 0 detected in first column. Expected weights > 0."
     with pytest.raises(ValueError, match=msg):
         msr.fit(X, y)
 
@@ -49,6 +49,16 @@ def test_add_weights():
 
     assert_array_almost_equal(msr.factors, factors)
     assert_array_almost_equal(msr.predict(features), y_pred)
+
+
+def test_negative_weights():
+    y = y_sums
+    X = np.insert(features, 0, np.array([-100, 200, 300, 400]), axis=1)
+
+    msr = MarginalSumsRegression()
+    msg = r"Value <= 0 detected in first column. Expected weights > 0."
+    with pytest.raises(ValueError, match=msg):
+        msr.fit(X, y)
 
 
 def test_convergence_warning():
@@ -92,8 +102,9 @@ def test_not_onehot_encoded_input():
     with pytest.raises(ValueError, match=msg):
         msr.fit(X, y)
 
+
 def test_2d_y():
-    y = y_sums.reshape(-1,1)
+    y = y_sums.reshape(-1, 1)
     X = np.insert(features, 0, weights, axis=1)
 
     msr = MarginalSumsRegression()

@@ -1,12 +1,12 @@
 import warnings
 from numbers import Real, Integral
 import numpy as np
-from .base import BaseEstimator
+from .base import BaseEstimator, RegressorMixin
 from .utils import check_array
 from .utils._param_validation import Interval
 
 
-class MarginalSumsRegression(BaseEstimator):
+class MarginalSumsRegression(BaseEstimator, RegressorMixin):
     """
     Marginal Sums Regression for aggregated and non aggreagted data.
 
@@ -140,8 +140,10 @@ class MarginalSumsRegression(BaseEstimator):
             self.weights = np.ones(X.shape[0])
         else:
             self.weights = X[:, 0]
-            if 0 in self.weights:
-                raise ValueError("0 detected in first column. Expected weights > 0.")
+            if (self.weights <= 0).any():
+                raise ValueError(
+                    "Value <= 0 detected in first column. Expected weights > 0."
+                )
             X = X[:, 1:]
 
         # check if array is onehot encoded
