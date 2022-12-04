@@ -6,6 +6,7 @@ from .compose import ColumnTransformer
 from .preprocessing import KBinsDiscretizer
 from .utils import check_array
 from .utils._param_validation import Interval
+from .utils.validation import check_is_fitted
 
 
 class MarginalSumsRegression(BaseEstimator, RegressorMixin):
@@ -239,6 +240,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             Input array with n observations and m features. All features need to be
             onehot encoded.
         """
+        check_is_fitted(self)
         X = self._validate_data(X=X, accept_sparse=True, reset=False)
         if self.column_transformer_:
             X = self.column_transformer_.transform(X)
