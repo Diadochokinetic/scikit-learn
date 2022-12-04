@@ -211,7 +211,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
         # init weight vector
         if sample_weight is not None:
-            self.weights_ = sample_weight
+            self.weights_ = np.array(sample_weight)
         else:
             self.weights_ = np.ones(X.shape[0])
         if (self.weights_ < 0).any():
