@@ -226,7 +226,7 @@ class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : {ndarray, sparse matrix} of shape (n_samples, n_features)
+        X : {ndarray} of shape (n_samples, n_features)
             Training data.
         y : ndarray of shape (n_samples,) or (n_samples, n_targets)
             Target values.
@@ -272,7 +272,7 @@ class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : array-like or sparse matrix, shape (n_samples, n_features)
+        X : array-like, shape (n_samples, n_features)
             Samples.
 
         Returns
