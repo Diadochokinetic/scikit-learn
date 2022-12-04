@@ -183,6 +183,8 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
                     f"Did not converge after {self.max_iter} iterations.", UserWarning
                 )
 
+        return self
+
     def fit(self, X, y, sample_weight=None):
         """
         Wrapper for the fit_ method to calculated weights, marginal sums, the mean
@@ -227,7 +229,8 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         # calculate mean y
         self.y_mean_ = np.sum(y) / np.sum(self.weights_)
 
-        self._fit(X, y)
+        return self._fit(X, y)
+
 
     def predict(self, X):
         """
