@@ -7,7 +7,7 @@ from sklearn.utils._testing import assert_array_almost_equal
 from sklearn.utils._testing import SkipTest
 
 weights = np.array([300, 700, 600, 200])
-y = np.array([66000, 231000, 120000, 60000])
+y = np.array([220, 330, 200, 300])
 X = np.array(
     [
         [1.0, 0.0, 0.0, 1.0],
@@ -31,7 +31,7 @@ def test_with_given_weights():
 
 def test_without_weights():
     msr = MarginalSumsRegression()
-    msr.fit(np.repeat(X, weights, axis=0), np.repeat(y / weights, weights, axis=0))
+    msr.fit(np.repeat(X, weights, axis=0), np.repeat(y, weights, axis=0))
 
     assert_array_almost_equal(msr.factors_, factors)
     assert_array_almost_equal(msr.predict(X), y_pred)

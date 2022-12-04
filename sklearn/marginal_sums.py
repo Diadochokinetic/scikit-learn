@@ -224,13 +224,13 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         self.factors_change_ = np.zeros(X.shape[1])
 
         # calculate marginal sums of original data
-        self.marginal_sums_ = np.dot(X.T, y)
+        self.marginal_sums_ = np.dot(X.T, y * self.weights_)
+        print(self.marginal_sums_)
 
         # calculate mean y
-        self.y_mean_ = np.sum(y) / np.sum(self.weights_)
+        self.y_mean_ = np.average(y, weights=self.weights_)
 
         return self._fit(X, y)
-
 
     def predict(self, X):
         """
