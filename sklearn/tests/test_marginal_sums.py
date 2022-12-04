@@ -4,6 +4,7 @@ import scipy
 from sklearn.exceptions import DataConversionWarning
 from sklearn.marginal_sums import MarginalSumsRegression
 from sklearn.utils._testing import assert_array_almost_equal
+from sklearn.utils._testing import SkipTest
 
 weights = np.array([300, 700, 600, 200])
 y = np.array([66000, 231000, 120000, 60000])
@@ -90,15 +91,18 @@ def test_2d_y():
 
 
 def test_df_with_given_weights():
-    msr = MarginalSumsRegression()
+
     try:
         import pandas as pd
+    except ImportError:
+        raise SkipTest(
+            "pandas is not installed: not checking column name consistency for pandas"
+        )
+    msr = MarginalSumsRegression()
 
-        columns = ["x1", "x2", "x3", "x4"]
-        msr.fit(pd.DataFrame(X, columns=columns), y, sample_weight=weights)
+    columns = ["x1", "x2", "x3", "x4"]
+    msr.fit(pd.DataFrame(X, columns=columns), y, sample_weight=weights)
 
-        assert_array_almost_equal(msr.factors_, factors)
-        assert_array_almost_equal(msr.predict(X), y_pred)
-        assert_array_almost_equal(msr.fit_predict(X, y, sample_weight=weights), y_pred)
-    except:
-        warnings.warn("pandas not installed", UserWarning)
+    assert_array_almost_equal(msr.factors_, factors)
+    assert_array_almost_equal(msr.predict(pd.DataFrame(X, columns=columns)), y_pred)
+    assert_array_almost_equal(msr.fit_predict(pd.DataFrame(X, columns=columns), y, sample_weight=weights), y_pred)

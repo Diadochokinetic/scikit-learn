@@ -202,7 +202,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         """
 
         self._validate_params()
-        X, y = self._validate_data(X=X, y=y, accept_sparse=True)
+        X, y = self._validate_data(X=X, y=y, reset=True, accept_sparse=True)
         X = self._check_X(X)
 
         # init weight vector
@@ -239,7 +239,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             Input array with n observations and m features. All features need to be
             onehot encoded.
         """
-        X = self._validate_data(X=X, accept_sparse=True)
+        X = self._validate_data(X=X, accept_sparse=True, reset=False)
         if self.column_transformer_:
             X = self.column_transformer_.transform(X)
         X_factor = np.multiply(self.factors_, X)
