@@ -12,7 +12,7 @@ from .utils.validation import check_is_fitted
 class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
     """Method of Marignal Totals used for regression.
 
-    This estimator is based on the Method of Marginal Sums (MMT) by Bailey (1963).
+    This estimator is based on the Method of Marginal Ttotals (MMT) by Bailey (1963).
     See https://www.casact.org/abstract/insurance-rates-minimum-bias for details.
 
     This is a multiplicative model based on the product of factors and a base value.
@@ -194,7 +194,7 @@ class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
                     self.factors_[col_mask], X[row_mask][:, col_mask]
                 )
 
-                # Calculate the marginal sum with the current factors
+                # Calculate the marginal totals with the current factors
                 # SUM(weights * PROD(factors) * y_mean)
                 calc_marginal_total = (
                     self.weights_[row_mask]
@@ -258,7 +258,7 @@ class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
         self.factors_ = np.ones(X.shape[1])
         self.factors_change_ = np.zeros(X.shape[1])
 
-        # calculate marginal sums of original data
+        # calculate marginal totals of original data
         self.marginal_totals_ = np.dot(X.T, y * self.weights_)
 
         # calculate mean y
