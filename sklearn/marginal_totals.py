@@ -9,27 +9,30 @@ from .utils._param_validation import Interval
 from .utils.validation import check_is_fitted
 
 
-class MarginalSumsRegression(BaseEstimator, RegressorMixin):
-    """
-    Marginal Sums Regression for aggregated and non aggreagted data.
+class MarginalTotalsRegression(BaseEstimator, RegressorMixin):
+    """Method of Marignal Totals used for regression.
 
-    This is a multiplicative model based on a product of factors and a base value.
+    This estimator is based on the Method of Marginal Sums (MMT) by Bailey (1963).
+    See https://www.casact.org/abstract/insurance-rates-minimum-bias for details.
+
+    This is a multiplicative model based on the product of factors and a base value.
     f1 * f2 * ... * fn * b
 
-    The base value is the mean of the target variable.
-    There is a factor initialzed with 1 for each feature. The features are expected to
-    be onehot encoded. The first column of X can be a weight vector (see add_weights).
+    There is a factor for each feature. The features are expected to be onehot encoded.
+    Features, that aren't onehot encoded at the time of fit, will be discretized and
+    onehot encoded by the given discretizer. The base value is simply the mean of the
+    target variable.
 
-    The features get updated sequentially. First the marginal sum for each feature is
+    The factors get updated sequentially. First the marginal totals for each feature is
     calculated by X.T dot y. These sums are fixed for the rest of the algorithm. For
     each feature X gets masked, such that all rows with the current feature = 1 are
     selected and all columns except for the current feature. This masked X gets
     multiplied elementwise with the corresponding weights and current factors of the
     other features.
     SUM(weights * PROD(factors) * y_mean)
-    The original marginal sum for the current feature gets divided by this estimated
-    marginal sum. The result is the updated factor
-    marginal sum / estimated marginal sum
+    The original marginal total for the current feature gets divided by this estimated
+    marginal total. The result is the updated factor
+    marginal total / estimated marginal total
 
     This update is done iterativley until either a number of maximum iterations is
     reached or the algorithm converges.
@@ -41,7 +44,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         encoded yet. If "kbins", then dafault
         KBinsDiscretizer(encode="onehot", n_bins=2, random_state=42) is used.
 
-    nax_iter : int, default=100
+    max_iter : int, default=100
         Number of maximum iterations, in case the algorithm does not converge. One
         iteration consists of at least one factor update of each feature.
 
@@ -51,24 +54,58 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     Attributes
     ----------
-    discretizer_ : transfoerm
+    column_transformer_ : column_transformer
+        Internal column_transformer to handel already onehot encoded and not already
+        onehot encoded features.
+
+    discretizer_ : transformer
         Internal discretizer used to onehot encode features.
 
-    factors_ : ndarray of shape (n_classes,)
+    factors_ : ndarray of shape (n_features,)
         Factors for the multiplicative model.
 
-    factors_change_ : ndarray of shape (n_classes,)
+    factors_change_ : ndarray of shape (n_features,)
         Updates on the factors of the latest iteration.
+
+    marginal_totals_ :  ndarray of shape (n_features,)
+        Marginal Totals of the input data.
 
     feature_names_in_ : ndarray of shape (`n_features_in_`,)
         Names of features seen during :term:`fit`. Defined only when `X`
         has feature names that are all strings.
+
+    n_features_in_ : int
+        Number of features seen during :term:`fit`.
+        .. versionadded:: 0.24
+    n_iter_ : int
+        Actual number of iterations used in the solver.
 
     weights_ : ndarray of shape (n_rows,)
         Weights used for fitting.
 
     y_mean_ : float
         Mean value of the target variable.
+
+    See Also
+    --------
+    PoissonRegressor : Generalized Linear Model with a Poisson distribution.
+    TweedieRegressor : Generalized Linear Model with a Tweedie distribution.
+
+    Examples
+    --------
+    weights = np.array([300, 700, 600, 200])
+    y = np.array([220, 330, 200, 300])
+    X = np.array(
+        [
+            [1.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0, 0.0],
+        ]
+    )
+
+    msr = MarginalTotalsRegression()
+    msr.fit(X, y, sample_weight=weights)
     """
 
     _parameter_constraints: dict = {
@@ -83,7 +120,6 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         max_iter=100,
         min_factor_change=0.001,
     ):
-        # self.add_weights = add_weights
         self.discretizer = discretizer
         self.max_iter = max_iter
         self.min_factor_change = min_factor_change
@@ -160,14 +196,14 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
                 # Calculate the marginal sum with the current factors
                 # SUM(weights * PROD(factors) * y_mean)
-                calc_marginal_sum = (
+                calc_marginal_total = (
                     self.weights_[row_mask]
                     * np.prod(X_factor, axis=1, where=X_factor > 0)
                     * self.y_mean_
                 ).sum()
 
                 # Update the factor
-                updated_factor = self.marginal_sums_[feature] / calc_marginal_sum
+                updated_factor = self.marginal_totals_[feature] / calc_marginal_total
                 self.factors_change_[feature] = np.absolute(
                     self.factors_[feature] - updated_factor
                 )
@@ -186,23 +222,22 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         return self
 
     def fit(self, X, y, sample_weight=None):
-        """
-        Wrapper for the fit_ method to calculated weights, marginal sums, the mean
-        target and initialize factors.
+        """Fit multiplicative regression model.
 
         Parameters
         ----------
-        X : array of shape (n,m)
-            Input array with n observations and either m features (no weight vector) or
-            m - 1 features if the first row is a weight vector. All features, except
-            for the weight vector, need to be onehot encoded. The weights must not
-            contain zeros.
+        X : {ndarray, sparse matrix} of shape (n_samples, n_features)
+            Training data.
+        y : ndarray of shape (n_samples,) or (n_samples, n_targets)
+            Target values.
+        sample_weight : float or ndarray of shape (n_samples,), default=None
+            Individual weights for each sample. If given a float, every sample
+            will have the same weight.
 
-        y : array of shape (n,1)
-            Target variable.
-
-        sample_weight : array-like of shape (n_samples,), default=None
-            Weights applied to individual samples (1. for unweighted).
+        Returns
+        -------
+        self : object
+            Fitted estimator.
         """
 
         self._validate_params()
@@ -224,8 +259,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         self.factors_change_ = np.zeros(X.shape[1])
 
         # calculate marginal sums of original data
-        self.marginal_sums_ = np.dot(X.T, y * self.weights_)
-        print(self.marginal_sums_)
+        self.marginal_totals_ = np.dot(X.T, y * self.weights_)
 
         # calculate mean y
         self.y_mean_ = np.average(y, weights=self.weights_)
@@ -234,15 +268,17 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
 
     def predict(self, X):
         """
-        Predict based on the fitted model. This method expects no weight vector, only
-        the onehot encoded features.
+        Predict using the multiplicative model.
 
         Parameters
-        -----------
+        ----------
+        X : array-like or sparse matrix, shape (n_samples, n_features)
+            Samples.
 
-        X : array of shape (n,m)
-            Input array with n observations and m features. All features need to be
-            onehot encoded.
+        Returns
+        -------
+        y_pred : array, shape (n_samples,)
+            Returns predicted values.
         """
         check_is_fitted(self)
         X = self._validate_data(X=X, accept_sparse=False, reset=False)
@@ -250,25 +286,3 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             X = self.column_transformer_.transform(X)
         X_factor = np.multiply(self.factors_, X)
         return np.prod(X_factor, axis=1, where=X_factor > 0) * self.y_mean_
-
-    def fit_predict(self, X, y, sample_weight=None):
-        """
-        Fit & predict. See the fit and predcit methods for details.
-
-        Parameters
-        ----------
-        X : array of shape (n,m)
-            Input array with n observations and either m features (no weight vector) or
-            m - 1 features if the first row is a weight vector. All features, except
-            for the weight vector, need to be onehot encoded. The weights must not
-            contain zeros.
-
-        y : array of shape (n,1)
-            Target variable.
-
-        sample_weight : array-like of shape (n_samples,), default=None
-            Weights applied to individual samples (1. for unweighted).
-        """
-
-        self.fit(X, y, sample_weight)
-        return self.predict(X)
