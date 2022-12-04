@@ -88,11 +88,12 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         self.max_iter = max_iter
         self.min_factor_change = min_factor_change
 
-    def _check_X(self, X):
-        # ensure ndarray
-        if hasattr(X, "toarray"):
-            X = X.toarray()
+    def _more_tags(self):
+        return {
+            "poor_score": True,  # max_iter=5 in test_common is too low for decent results
+        }
 
+    def _check_X(self, X):
         # ensure array is onehot encoded
         onehot_cols = [
             col
@@ -203,7 +204,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
         """
 
         self._validate_params()
-        X, y = self._validate_data(X=X, y=y, reset=True, accept_sparse=True)
+        X, y = self._validate_data(X=X, y=y, reset=True, accept_sparse=False)
         X = self._check_X(X)
 
         # init weight vector
@@ -241,7 +242,7 @@ class MarginalSumsRegression(BaseEstimator, RegressorMixin):
             onehot encoded.
         """
         check_is_fitted(self)
-        X = self._validate_data(X=X, accept_sparse=True, reset=False)
+        X = self._validate_data(X=X, accept_sparse=False, reset=False)
         if self.column_transformer_:
             X = self.column_transformer_.transform(X)
         X_factor = np.multiply(self.factors_, X)

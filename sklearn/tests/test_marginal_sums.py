@@ -56,11 +56,10 @@ def test_convergence_warning():
 
 def test_sparse_input():
     msr = MarginalSumsRegression()
-    msr.fit(scipy.sparse.csr_matrix(X), y, sample_weight=weights)
 
-    assert_array_almost_equal(msr.factors_, factors)
-    assert_array_almost_equal(msr.predict(X), y_pred)
-    assert_array_almost_equal(msr.fit_predict(X, y, sample_weight=weights), y_pred)
+    msg = r"A sparse matrix was passed"
+    with pytest.raises(TypeError, match=msg):
+        msr.fit(scipy.sparse.csr_matrix(X), y, sample_weight=weights)
 
 
 def test_not_onehot_encoded_input():
@@ -105,4 +104,7 @@ def test_df_with_given_weights():
 
     assert_array_almost_equal(msr.factors_, factors)
     assert_array_almost_equal(msr.predict(pd.DataFrame(X, columns=columns)), y_pred)
-    assert_array_almost_equal(msr.fit_predict(pd.DataFrame(X, columns=columns), y, sample_weight=weights), y_pred)
+    assert_array_almost_equal(
+        msr.fit_predict(pd.DataFrame(X, columns=columns), y, sample_weight=weights),
+        y_pred,
+    )
