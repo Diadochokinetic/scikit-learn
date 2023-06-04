@@ -7,6 +7,7 @@ import numpy as np
 from scipy import sparse
 from scipy import linalg
 from scipy.sparse.linalg import eigsh
+from scipy.linalg import eigh
 from scipy.special import expit
 
 import pytest
@@ -233,8 +234,8 @@ def test_randomized_eigsh_compared_to_others(k):
     )
 
     # with LAPACK
-    eigvals_lapack, eigvecs_lapack = linalg.eigh(
-        X, eigvals=(n_features - k, n_features - 1)
+    eigvals_lapack, eigvecs_lapack = eigh(
+        X, subset_by_index=(n_features - k, n_features - 1)
     )
     indices = eigvals_lapack.argsort()[::-1]
     eigvals_lapack = eigvals_lapack[indices]
@@ -701,7 +702,6 @@ def test_incremental_weighted_mean_and_variance_simple(rng, dtype):
 def test_incremental_weighted_mean_and_variance(
     mean, var, weight_loc, weight_scale, rng
 ):
-
     # Testing of correctness and numerical stability
     def _assert(X, sample_weight, expected_mean, expected_var):
         n = X.shape[0]

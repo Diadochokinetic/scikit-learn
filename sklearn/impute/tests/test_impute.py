@@ -98,11 +98,7 @@ def test_imputation_shape(strategy):
 def test_imputation_deletion_warning(strategy):
     X = np.ones((3, 5))
     X[:, 0] = np.nan
-    imputer = SimpleImputer(strategy=strategy, verbose=1)
-
-    # TODO: Remove in 1.3
-    with pytest.warns(FutureWarning, match="The 'verbose' parameter"):
-        imputer.fit(X)
+    imputer = SimpleImputer(strategy=strategy).fit(X)
 
     with pytest.warns(UserWarning, match="Skipping"):
         imputer.transform(X)
@@ -110,7 +106,6 @@ def test_imputation_deletion_warning(strategy):
 
 @pytest.mark.parametrize("strategy", ["mean", "median", "most_frequent"])
 def test_imputation_deletion_warning_feature_names(strategy):
-
     pd = pytest.importorskip("pandas")
 
     missing_values = np.nan
@@ -123,11 +118,7 @@ def test_imputation_deletion_warning_feature_names(strategy):
         columns=feature_names,
     )
 
-    imputer = SimpleImputer(strategy=strategy, verbose=1)
-
-    # TODO: Remove in 1.3
-    with pytest.warns(FutureWarning, match="The 'verbose' parameter"):
-        imputer.fit(X)
+    imputer = SimpleImputer(strategy=strategy).fit(X)
 
     # check SimpleImputer returning feature name attribute correctly
     assert_array_equal(imputer.feature_names_in_, feature_names)
@@ -1522,6 +1513,21 @@ def test_iterative_imputer_keep_empty_features(initial_strategy):
     assert_allclose(X_imputed[:, 1], 0)
     X_imputed = imputer.transform(X)
     assert_allclose(X_imputed[:, 1], 0)
+
+
+def test_iterative_imputer_constant_fill_value():
+    """Check that we propagate properly the parameter `fill_value`."""
+    X = np.array([[-1, 2, 3, -1], [4, -1, 5, -1], [6, 7, -1, -1], [8, 9, 0, -1]])
+
+    fill_value = 100
+    imputer = IterativeImputer(
+        missing_values=-1,
+        initial_strategy="constant",
+        fill_value=fill_value,
+        max_iter=0,
+    )
+    imputer.fit_transform(X)
+    assert_array_equal(imputer.initial_imputer_.statistics_, fill_value)
 
 
 @pytest.mark.parametrize("keep_empty_features", [True, False])

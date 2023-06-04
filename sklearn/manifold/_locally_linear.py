@@ -7,9 +7,10 @@
 from numbers import Integral, Real
 
 import numpy as np
-from scipy.linalg import eigh, svd, qr, solve
+from scipy.linalg import svd, qr, solve
 from scipy.sparse import eye, csr_matrix
 from scipy.sparse.linalg import eigsh
+from scipy.linalg import eigh
 
 from ..base import (
     BaseEstimator,
@@ -190,7 +191,7 @@ def null_space(
         if hasattr(M, "toarray"):
             M = M.toarray()
         eigen_values, eigen_vectors = eigh(
-            M, eigvals=(k_skip, k + k_skip - 1), overwrite_a=True
+            M, subset_by_index=(k_skip, k + k_skip - 1), overwrite_a=True
         )
         index = np.argsort(np.abs(eigen_values))
         return eigen_vectors[:, index], np.sum(eigen_values)
