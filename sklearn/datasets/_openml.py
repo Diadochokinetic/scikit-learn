@@ -824,7 +824,7 @@ def fetch_openml(
 
     target_column : str, list or None, default='default-target'
         Specify the column name in the data to use as target. If
-        'default-target', the standard target column a stored on the server
+        'default-target', the standard target column as stored on the server
         is used. If ``None``, all columns are returned as data and the
         target is ``None``. If list (of strings), all columns with these names
         are returned as multi-target (Note: not all scikit-learn classifiers
